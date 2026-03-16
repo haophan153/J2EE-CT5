@@ -1,0 +1,71 @@
+package com.example.EcoSwap.config;
+
+import com.example.EcoSwap.entity.Category;
+import com.example.EcoSwap.entity.User;
+import com.example.EcoSwap.repository.CategoryRepository;
+import com.example.EcoSwap.repository.UserRepository;
+import lombok.RequiredArgsConstructor;
+import org.springframework.boot.CommandLineRunner;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Component;
+
+@Component
+@RequiredArgsConstructor
+public class DataInitializer implements CommandLineRunner {
+    
+    private final UserRepository userRepository;
+    private final CategoryRepository categoryRepository;
+    private final PasswordEncoder passwordEncoder;
+    
+    @Override
+    public void run(String... args) {
+        // Tạo admin nếu chưa tồn tại
+        if (userRepository.findByUsername("admin").isEmpty()) {
+            User admin = User.builder()
+                .username("admin")
+                .email("admin@ecoswap.com")
+                .password(passwordEncoder.encode("admin123"))
+                .fullName("Quản trị viên")
+                .phone("0123456789")
+                .address("Hà Nội, Việt Nam")
+                .active(true)
+                .build();
+            userRepository.save(admin);
+        }
+        
+        // Tạo user1 nếu chưa tồn tại
+        if (userRepository.findByUsername("nguoidung1").isEmpty()) {
+            User user1 = User.builder()
+                .username("nguoidung1")
+                .email("user1@email.com")
+                .password(passwordEncoder.encode("123456"))
+                .fullName("Người Dùng Một")
+                .phone("0987654321")
+                .address("TP. Hồ Chí Minh, Việt Nam")
+                .active(true)
+                .build();
+            userRepository.save(user1);
+        }
+        
+        if (categoryRepository.count() == 0) {
+            String[] categories = {
+                "Điện tử - Công nghệ",
+                "Đồ gia dụng",
+                "Thời trang",
+                "Sách - Văn hóa",
+                "Thể thao - Dã ngoại",
+                "Đồ chơi - Game",
+                "Nội thất",
+                "Ô tô - Xe máy"
+            };
+            
+            for (String name : categories) {
+                Category category = Category.builder()
+                    .name(name)
+                    .description("Danh mục " + name.toLowerCase())
+                    .build();
+                categoryRepository.save(category);
+            }
+        }
+    }
+}
