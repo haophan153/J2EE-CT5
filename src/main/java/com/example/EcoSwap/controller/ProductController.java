@@ -8,6 +8,7 @@ import com.example.EcoSwap.service.FileUploadService;
 import com.example.EcoSwap.service.ProductService;
 import com.example.EcoSwap.service.UserService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
@@ -34,18 +35,29 @@ public class ProductController {
         productService.getProductById(id).ifPresent(product -> model.addAttribute("product", product));
         return "products/detail";
     }
-    
-    @GetMapping("/product/new")
+
+    @GetMapping("/products/{id}")
+    public String productDetailAlt(@PathVariable Long id, Model model) {
+        productService.getProductById(id).ifPresent(product -> model.addAttribute("product", product));
+        return "products/detail";
+    }
+
+    @GetMapping("/products/create")
     public String newProductForm(Model model) {
         model.addAttribute("product", new Product());
         model.addAttribute("categories", categoryService.getAllCategories());
         return "products/create";
     }
-    
-    @PostMapping("/product/new")
+
+    @PostMapping("/products/create")
     public String createProduct(@ModelAttribute Product product, 
                                 @RequestParam("imageFile") MultipartFile imageFile,
-                                HttpSession session) {
+                                Authentication authentication) {
+        // Lấy user hiện tại đang đăng nhập
+        String username = authentication.getName();
+        User currentUser = userService.getUserByUsername(username)
+                .orElseThrow(() -> new RuntimeException("User not found: " + username));
+        
         // Upload ảnh nếu có
         if (imageFile != null && !imageFile.isEmpty()) {
             String imageUrl = fileUploadService.uploadFile(imageFile);
@@ -54,7 +66,8 @@ public class ProductController {
             }
         }
         
-        userService.getUserById(1L).ifPresent(user -> product.setUser(user));
+        // Gán user hiện tại làm chủ sản phẩm
+        product.setUser(currentUser);
         product.setStatus("AVAILABLE");
         productService.createProduct(product);
         return "redirect:/products";

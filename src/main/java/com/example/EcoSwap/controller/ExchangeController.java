@@ -1,0 +1,189 @@
+package com.example.EcoSwap.controller;
+
+import com.example.EcoSwap.entity.*;
+import com.example.EcoSwap.service.*;
+import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.stereotype.Controller;
+import org.springframework.ui.Model;
+import org.springframework.web.bind.annotation.*;
+import java.util.List;
+import java.util.Optional;
+
+@Controller
+@RequiredArgsConstructor
+public class ExchangeController {
+    
+    private final ExchangeService exchangeService;
+    private final ProductService productService;
+    private final UserService userService;
+    
+    private User getCurrentUser(UserDetails userDetails) {
+        return userService.findByUsername(userDetails.getUsername())
+            .orElseThrow(() -> new RuntimeException("User not found"));
+    }
+    
+    @GetMapping("/exchanges")
+    public String myExchanges(Model model, @AuthenticationPrincipal UserDetails userDetails,
+                              @RequestParam(defaultValue = "0") int page,
+                              @RequestParam(required = false) Boolean showReceived) {
+        User currentUser = getCurrentUser(userDetails);
+        Pageable pageable = PageRequest.of(page, 10);
+        
+        Page<ExchangeRequest> sentRequests = exchangeService.getSentRequestsPaged(currentUser.getId(), pageable);
+        Page<ExchangeRequest> receivedRequests = exchangeService.getReceivedRequestsPaged(currentUser.getId(), pageable);
+        
+        // Đếm yêu cầu nhận được đang chờ xử lý (PENDING hoặc NEGOTIATING)
+        long pendingReceivedCount = receivedRequests.getContent().stream()
+            .filter(r -> r.getStatus() == ExchangeRequest.ExchangeStatus.PENDING 
+                      || r.getStatus() == ExchangeRequest.ExchangeStatus.NEGOTIATING)
+            .count();
+        
+        // Xác định tab nào hiển thị mặc định
+        boolean showReceivedTab = showReceived != null && showReceived;
+        // Nếu có yêu cầu PENDING nhận được và không có param cụ thể -> hiển thị tab nhận được
+        if (showReceived == null && pendingReceivedCount > 0) {
+            showReceivedTab = true;
+        }
+        
+        model.addAttribute("sentRequests", sentRequests.getContent());
+        model.addAttribute("receivedRequests", receivedRequests.getContent());
+        model.addAttribute("pendingReceivedCount", pendingReceivedCount);
+        model.addAttribute("showReceivedTab", showReceivedTab);
+        model.addAttribute("currentPage", page);
+        model.addAttribute("totalPages", Math.max(sentRequests.getTotalPages(), receivedRequests.getTotalPages()));
+        
+        return "exchanges/list";
+    }
+    
+    @GetMapping("/exchange/request/{productId}")
+    public String showExchangeRequestForm(@PathVariable Long productId, Model model,
+                                          @AuthenticationPrincipal UserDetails userDetails) {
+        User currentUser = getCurrentUser(userDetails);
+        
+        Product requestedProduct = productService.getProductById(productId)
+            .orElseThrow(() -> new RuntimeException("Product not found"));
+        
+        if (requestedProduct.getUser().getId().equals(currentUser.getId())) {
+            return "redirect:/products/" + productId + "?error=cannot_exchange_own_product";
+        }
+        
+        List<Product> myProducts = productService.getProductsByUser(currentUser.getId())
+            .stream()
+            .filter(p -> "AVAILABLE".equals(p.getStatus()))
+            .toList();
+        
+        model.addAttribute("requestedProduct", requestedProduct);
+        model.addAttribute("myProducts", myProducts);
+        model.addAttribute("currentUser", currentUser);
+        
+        return "exchanges/request";
+    }
+    
+    @PostMapping("/exchange/request")
+    public String createExchangeRequest(@RequestParam Long ownerId,
+                                        @RequestParam Long offeredProductId,
+                                        @RequestParam Long requestedProductId,
+                                        @RequestParam(required = false) String message,
+                                        @AuthenticationPrincipal UserDetails userDetails) {
+        User currentUser = getCurrentUser(userDetails);
+        
+        if (exchangeService.hasExistingRequest(requestedProductId, currentUser.getId())) {
+            return "redirect:/products/" + requestedProductId + "?error=already_requested";
+        }
+        
+        exchangeService.createRequest(currentUser.getId(), ownerId, offeredProductId, 
+                                       requestedProductId, message);
+        
+        return "redirect:/exchanges?success=request_created";
+    }
+    
+    @GetMapping("/exchange/{id}")
+    public String viewExchange(@PathVariable Long id, Model model,
+                               @AuthenticationPrincipal UserDetails userDetails) {
+        User currentUser = getCurrentUser(userDetails);
+        
+        Optional<ExchangeRequest> requestOpt = exchangeService.getRequestByIdForUser(id, currentUser.getId());
+        
+        if (requestOpt.isEmpty()) {
+            return "redirect:/exchanges?error=not_found";
+        }
+        
+        ExchangeRequest request = requestOpt.get();
+        List<ExchangeMessage> messages = exchangeService.getMessages(id);
+        
+        model.addAttribute("exchange", request);
+        model.addAttribute("messages", messages);
+        model.addAttribute("currentUser", currentUser);
+        
+        boolean isOwner = request.getOwner().getId().equals(currentUser.getId());
+        model.addAttribute("isOwner", isOwner);
+        
+        return "exchanges/detail";
+    }
+    
+    @PostMapping("/exchange/{id}/message")
+    public String sendMessage(@PathVariable Long id,
+                              @RequestParam String content,
+                              @AuthenticationPrincipal UserDetails userDetails) {
+        User currentUser = getCurrentUser(userDetails);
+        exchangeService.addMessage(id, currentUser.getId(), content);
+        return "redirect:/exchange/" + id;
+    }
+    
+    @PostMapping("/exchange/{id}/accept")
+    public String acceptExchange(@PathVariable Long id,
+                                 @AuthenticationPrincipal UserDetails userDetails) {
+        User currentUser = getCurrentUser(userDetails);
+        
+        Optional<ExchangeRequest> requestOpt = exchangeService.getRequestById(id);
+        if (requestOpt.isPresent() && requestOpt.get().getOwner().getId().equals(currentUser.getId())) {
+            exchangeService.acceptRequest(id);
+        }
+        
+        return "redirect:/exchange/" + id + "?success=accepted";
+    }
+    
+    @PostMapping("/exchange/{id}/reject")
+    public String rejectExchange(@PathVariable Long id,
+                                  @AuthenticationPrincipal UserDetails userDetails) {
+        User currentUser = getCurrentUser(userDetails);
+        
+        Optional<ExchangeRequest> requestOpt = exchangeService.getRequestById(id);
+        if (requestOpt.isPresent() && requestOpt.get().getOwner().getId().equals(currentUser.getId())) {
+            exchangeService.rejectRequest(id);
+        }
+        
+        return "redirect:/exchange/" + id + "?success=rejected";
+    }
+    
+    @PostMapping("/exchange/{id}/complete")
+    public String completeExchange(@PathVariable Long id,
+                                    @AuthenticationPrincipal UserDetails userDetails) {
+        User currentUser = getCurrentUser(userDetails);
+        
+        Optional<ExchangeRequest> requestOpt = exchangeService.getRequestByIdForUser(id, currentUser.getId());
+        if (requestOpt.isPresent()) {
+            exchangeService.completeRequest(id);
+        }
+        
+        return "redirect:/exchange/" + id + "?success=completed";
+    }
+    
+    @PostMapping("/exchange/{id}/cancel")
+    public String cancelExchange(@PathVariable Long id,
+                                  @AuthenticationPrincipal UserDetails userDetails) {
+        User currentUser = getCurrentUser(userDetails);
+        
+        Optional<ExchangeRequest> requestOpt = exchangeService.getRequestByIdForUser(id, currentUser.getId());
+        if (requestOpt.isPresent()) {
+            exchangeService.cancelRequest(id);
+        }
+        
+        return "redirect:/exchanges?success=cancelled";
+    }
+}

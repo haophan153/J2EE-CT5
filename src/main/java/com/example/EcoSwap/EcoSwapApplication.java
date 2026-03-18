@@ -1,8 +1,6 @@
-package com.example.EcoSwap;
-
+package com.example.EcoSwap;	
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
-
 @SpringBootApplication
 public class EcoSwapApplication {
 

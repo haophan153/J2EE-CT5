@@ -3,6 +3,7 @@ package com.example.EcoSwap.controller;
 import com.example.EcoSwap.entity.User;
 import com.example.EcoSwap.service.UserService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
@@ -36,5 +37,24 @@ public class AuthController {
         }
         userService.createUser(user);
         return "redirect:/login?registered";
+    }
+    
+    @PostMapping("/api/create-admin")
+    @ResponseBody
+    public ResponseEntity<String> createAdmin(@RequestParam String username, 
+                                               @RequestParam String password,
+                                               @RequestParam String email) {
+        if (userService.existsByUsername(username)) {
+            return ResponseEntity.badRequest().body("User already exists");
+        }
+        User user = User.builder()
+                .username(username)
+                .password(password)
+                .email(email)
+                .fullName("Admin")
+                .active(true)
+                .build();
+        userService.createUser(user);
+        return ResponseEntity.ok("Admin created successfully!");
     }
 }
