@@ -19,17 +19,17 @@ public class DataInitializer implements CommandLineRunner {
     
     @Override
     public void run(String... args) {
-        // Tạo admin nếu chưa tồn tại
+        // Chỉ tạo admin nếu chưa tồn tại
         if (userRepository.findByUsername("admin").isEmpty()) {
             User admin = User.builder()
-                .username("admin")
-                .email("admin@ecoswap.com")
-                .password(passwordEncoder.encode("admin123"))
-                .fullName("Quản trị viên")
-                .phone("0123456789")
-                .address("Hà Nội, Việt Nam")
-                .active(true)
-                .build();
+                    .username("admin")
+                    .email("admin@ecoswap.com")
+                    .password(passwordEncoder.encode("admin123"))
+                    .fullName("Quản trị viên")
+                    .phone("0123456789")
+                    .address("Hà Nội, Việt Nam")
+                    .active(true)
+                    .build();
             userRepository.save(admin);
         }
         

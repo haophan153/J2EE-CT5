@@ -1,5 +1,6 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org">
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -25,8 +26,22 @@
                     <button type="submit" class="btn btn-primary">Tìm</button>
                 </form>
                 
-                <a th:href="@{/login}" class="btn btn-outline">Đăng nhập</a>
-                <a th:href="@{/register}" class="btn btn-primary">Đăng ký</a>
+                <!-- Chưa đăng nhập -->
+                <div sec:authorize="!isAuthenticated()">
+                    <a th:href="@{/login}" class="btn btn-outline">Đăng nhập</a>
+                    <a th:href="@{/register}" class="btn btn-primary">Đăng ký</a>
+                </div>
+                
+                <!-- Đã đăng nhập: hiển thị Profile + Đăng xuất -->
+                <div sec:authorize="isAuthenticated()" class="user-menu">
+                    <a th:href="@{/profile}" class="user-info">
+                        <span class="user-avatar" th:text="${#strings.substring(#authentication.name, 0, 1)}">U</span>
+                        <span class="user-name" th:text="${#authentication.name}">Username</span>
+                    </a>
+                    <form th:action="@{/logout}" method="post" style="display: inline;">
+                        <button type="submit" class="btn btn-outline">Đăng xuất</button>
+                    </form>
+                </div>
             </div>
         </nav>
     </header>
@@ -37,7 +52,7 @@
             <h1>Chào mừng đến với EcoSwap</h1>
             <p>Mua bán và trao đổi đồ cũ dễ dàng, an toàn và tiết kiệm</p>
             <a th:href="@{/products}" class="btn btn-secondary">Xem sản phẩm</a>
-            <a th:href="@{/product/new}" class="btn btn-outline" style="color: white; border-color: white;">Đăng bán ngay</a>
+            <a th:href="@{/products/create}" class="btn btn-outline" style="color: white; border-color: white;">Đăng bán ngay</a>
         </section>
         
         <!-- Categories Section -->
@@ -79,7 +94,7 @@
             <!-- No Products Message -->
             <div th:if="${#lists.isEmpty(products)}" style="text-align: center; padding: 3rem;">
                 <p style="font-size: 1.2rem; color: #7f8c8d;">Chưa có sản phẩm nào.</p>
-                <a th:href="@{/product/new}" class="btn btn-primary" style="margin-top: 1rem;">Đăng sản phẩm đầu tiên</a>
+                <a th:href="@{/products/create}" class="btn btn-primary" style="margin-top: 1rem;">Đăng sản phẩm đầu tiên</a>
             </div>
             
             <!-- Pagination -->
